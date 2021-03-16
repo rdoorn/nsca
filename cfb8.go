@@ -2,62 +2,47 @@ package nsca
 
 import (
 	"crypto/cipher"
-	"log"
 )
 
-// CFB stream with 8 bit segment size
-// See http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
 type cfb8 struct {
-	b         cipher.Block
-	blockSize int
-	in        []byte
-	out       []byte
-
+	b       cipher.Block
+	next    []byte
+	out     []byte
 	decrypt bool
 }
 
-func (x *cfb8) XORKeyStream(dst, src []byte) {
-	for i := range src {
-		x.b.Encrypt(x.out, x.in)
-		copy(x.in[:x.blockSize-1], x.in[1:])
-		if x.decrypt {
-			x.in[x.blockSize-1] = src[i]
+func newCFB8(block cipher.Block, iv []byte, decrypt bool) (stream cipher.Stream) {
+	cfb8 := new(cfb8)
+	cfb8.b = block
+	cfb8.next = make([]byte, len(iv))
+	cfb8.out = make([]byte, block.BlockSize())
+	cfb8.decrypt = decrypt
+	copy(cfb8.next, iv)
+	stream = cfb8
+	return
+}
+
+func NewCFB8Encrypter(block cipher.Block, iv []byte) (stream cipher.Stream) {
+	return newCFB8(block, iv, false)
+}
+
+func NewCFB8Decrypter(block cipher.Block, iv []byte) (stream cipher.Stream) {
+	return newCFB8(block, iv, true)
+}
+
+func (this *cfb8) XORKeyStream(dst, src []byte) {
+	var val byte
+	for i := 0; i < len(src); i++ {
+		val = src[i]
+		copy(this.out, this.next)
+		this.b.Encrypt(this.next, this.next)
+		val = val ^ this.next[0]
+		copy(this.next, this.out[1:])
+		if this.decrypt {
+			this.next[7] = src[i]
+		} else {
+			this.next[7] = val
 		}
-		dst[i] = src[i] ^ x.out[0]
-		if !x.decrypt {
-			x.in[x.blockSize-1] = dst[i]
-		}
+		dst[i] = val
 	}
-}
-
-// NewCFB8Encrypter returns a Stream which encrypts with cipher feedback mode
-// (segment size = 8), using the given Block. The iv must be the same length as
-// the Block's block size.
-func newCFB8Encrypter(block cipher.Block, iv []byte, blockSize int) cipher.Stream {
-	return newCFB8(block, iv, false, blockSize)
-}
-
-// NewCFB8Decrypter returns a Stream which decrypts with cipher feedback mode
-// (segment size = 8), using the given Block. The iv must be the same length as
-// the Block's block size.
-func newCFB8Decrypter(block cipher.Block, iv []byte, blockSize int) cipher.Stream {
-	return newCFB8(block, iv, true, blockSize)
-}
-
-func newCFB8(block cipher.Block, iv []byte, decrypt bool, blockSize int) cipher.Stream {
-	if len(iv) != blockSize {
-		// stack trace will indicate whether it was de or encryption
-		panic("cipher.newCFB: IV length must equal block size")
-	}
-	log.Printf("blocksize: %v", blockSize)
-	x := &cfb8{
-		b:         block,
-		blockSize: blockSize,
-		out:       make([]byte, blockSize),
-		in:        make([]byte, blockSize),
-		decrypt:   decrypt,
-	}
-	copy(x.in, iv)
-
-	return x
 }

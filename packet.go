@@ -10,9 +10,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"log"
-
-	"github.com/celso-wo/rijndael256"
 )
 
 const (
@@ -86,8 +83,6 @@ func (e *encryption) encrypt(b []byte) error {
 		}
 		return nil
 	}
-	log.Printf("len b : %d", len(b))
-	var blockSize int
 	var err error
 	var block cipher.Block
 	key := make([]byte, 128)
@@ -95,19 +90,20 @@ func (e *encryption) encrypt(b []byte) error {
 	switch e.method {
 	case ENCRYPT_DES:
 		block, err = des.NewCipher(key[:des.BlockSize])
-		blockSize = block.BlockSize()
+		enc := NewCFB8Encrypter(block, e.iv[:block.BlockSize()])
+		enc.XORKeyStream(b, b)
+		return nil
 	case ENCRYPT_3DES:
 		block, err = des.NewTripleDESCipher(key[:des.BlockSize*3])
-		blockSize = block.BlockSize()
+		enc := NewCFB8Encrypter(block, e.iv[:block.BlockSize()])
+		enc.XORKeyStream(b, b)
+		return nil
 	case ENCRYPT_RIJNDAEL128:
 		block, err = aes.NewCipher(key[:16])
-		blockSize = block.BlockSize()
 	case ENCRYPT_RIJNDAEL192:
 		block, err = aes.NewCipher(key[:24])
-		blockSize = block.BlockSize()
 	case ENCRYPT_RIJNDAEL256:
-		block, err = rijndael256.NewCipher(key[:32])
-		blockSize = block.BlockSize()
+		block, err = aes.NewCipher(key[:32])
 	case ENCRYPT_CAST128:
 		fallthrough
 	case ENCRYPT_CAST256:
@@ -154,11 +150,7 @@ func (e *encryption) encrypt(b []byte) error {
 	if err != nil {
 		return err
 	}
-	//enc := cipher.NewCFBEncrypter(block, e.iv[:block.BlockSize(])
-	//enc.XORKeyStream(b, b)
-
-	//enc := newCFB8Encrypter(block, e.iv[:block.BlockSize()])
-	enc := newCFB8Encrypter(block, e.iv[:blockSize], blockSize)
+	enc := cipher.NewCFBEncrypter(block, e.iv[:block.BlockSize()])
 	enc.XORKeyStream(b, b)
 	return nil
 }
@@ -233,7 +225,7 @@ func (p *dataPacket) write(w io.Writer, e *encryption) error {
 	if err != nil {
 		return err
 	}
-	output, err := makeBuffer(p.pluginOutput, 4096)
+	output, err := makeBuffer(p.pluginOutput, 512)
 	if err != nil {
 		return err
 	}
@@ -242,7 +234,6 @@ func (p *dataPacket) write(w io.Writer, e *encryption) error {
 	if err != nil {
 		return err
 	}
-	// added padding
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.BigEndian, p.packetVersion)
 	binary.Write(buf, binary.BigEndian, padding)
@@ -253,22 +244,6 @@ func (p *dataPacket) write(w io.Writer, e *encryption) error {
 	binary.Write(buf, binary.BigEndian, service)
 	binary.Write(buf, binary.BigEndian, output)
 	binary.Write(buf, binary.BigEndian, padding)
-
-	mod := 32
-	diff := buf.Len() % mod
-	log.Printf("len: %d", buf.Len())
-	log.Printf("mod: %d ", mod)
-	log.Printf("diff: %d ", diff)
-	if diff > 0 {
-		add := mod - (buf.Len() % mod)
-		log.Printf("add: %d", add)
-		padding2, err := makeBuffer("", add)
-		if err != nil {
-			return err
-		}
-		binary.Write(buf, binary.BigEndian, padding2)
-		log.Printf("new len: %d", buf.Len())
-	}
 
 	b := buf.Bytes()
 	p.crc32 = crc32.ChecksumIEEE(b)
