@@ -119,7 +119,7 @@ func TestSession(t *testing.T) {
 		}
 	}
 	// create Encryption
-	enc := newEncryption(ENCRYPT_NONE, ip.iv, "testpassword")
+	enc := newEncryption(ENCRYPT_RIJNDAEL256, ip.iv, "testpassword")
 	// create message
 	msg := newDataPacket(ip.timestamp, STATE_OK, "testHost", "testService", "A plugin message")
 	// write message

@@ -144,7 +144,10 @@ func (e *encryption) encrypt(b []byte) error {
 	if err != nil {
 		return err
 	}
-	enc := cipher.NewCFBEncrypter(block, e.iv[:block.BlockSize()])
+	/*enc := cipher.NewCFBEncrypter(block, e.iv[:block.BlockSize()])
+	enc.XORKeyStream(b, b)*/
+
+	enc := NewCFB8Encrypter(block, e.iv[:block.BlockSize()])
 	enc.XORKeyStream(b, b)
 	return nil
 }
