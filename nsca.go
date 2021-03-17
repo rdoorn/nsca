@@ -2,6 +2,7 @@
 package nsca
 
 import (
+	"log"
 	"net"
 	"time"
 )
@@ -58,6 +59,24 @@ func RunEndpoint(connectInfo ServerInfo, quit <-chan interface{}, messages <-cha
 			if err != nil {
 				server.Close()
 				err = nil
+			}
+		}
+	}
+}
+
+// RunEndpointMock creates a long-lived connection to an NSCA server. Messages sent into the messages
+// channel are only presented on screen
+func RunEndpointMock(connectInfo ServerInfo, quit <-chan interface{}, messages <-chan *Message) {
+	server := new(NSCAServer)
+	defer server.Close()
+	for {
+		select {
+		case <-quit:
+			return
+		case m := <-messages:
+			log.Printf("*mock* would send: %v", m)
+			if m.Status != nil {
+				m.Status <- nil
 			}
 		}
 	}
