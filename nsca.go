@@ -47,19 +47,19 @@ func RunEndpoint(connectInfo ServerInfo, quit <-chan interface{}, messages <-cha
 		case <-quit:
 			return
 		case m := <-messages:
-			if server.conn == nil {
-				err = server.Connect(connectInfo)
-			}
+			//if server.conn == nil {
+			err = server.Connect(connectInfo)
+			//}
 			if err == nil {
 				err = server.Send(m)
 			}
 			if m.Status != nil {
 				m.Status <- err
 			}
-			if err != nil {
-				server.Close()
-				err = nil
-			}
+			//if err != nil {
+			server.Close()
+			//err = nil
+			//}
 		}
 	}
 }
